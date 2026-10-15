@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Predictive maintenance for IoT devices</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+  color-scheme:light dark;
+  --bg:#E3E6E9; --surface:#F3F4F6; --ink:#182027; --ink2:#48545E; --rule:#BFC7CE;
+  --accent:#2B5F80; --accent-ink:#FFFFFF;
+  --ok:#2B7A57; --watch:#8A5D00; --high:#B84A0B; --crit:#B8232B;
+  --z-ok:rgba(112,128,140,.28); --z-watch:rgba(214,152,0,.38); --z-high:rgba(230,110,20,.40); --z-crit:rgba(200,40,50,.42);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#14191D; --surface:#1C2329; --ink:#E7EBEE; --ink2:#A6B1BA; --rule:#313B43;
+    --accent:#79B6DB; --accent-ink:#0D1519;
+    --ok:#5FC094; --watch:#E3AE3A; --high:#F28843; --crit:#F26B72;
+    --z-ok:rgba(140,155,168,.26); --z-watch:rgba(227,174,58,.40); --z-high:rgba(242,136,67,.42); --z-crit:rgba(242,107,114,.44);
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#14191D; --surface:#1C2329; --ink:#E7EBEE; --ink2:#A6B1BA; --rule:#313B43;
+  --accent:#79B6DB; --accent-ink:#0D1519;
+  --ok:#5FC094; --watch:#E3AE3A; --high:#F28843; --crit:#F26B72;
+  --z-ok:rgba(140,155,168,.26); --z-watch:rgba(227,174,58,.40); --z-high:rgba(242,136,67,.42); --z-crit:rgba(242,107,114,.44);
+}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.5 'IBM Plex Sans',system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;-webkit-text-size-adjust:100%}
+h1,h2,h3,.display{font-family:'Barlow Semi Condensed','Arial Narrow','Helvetica Neue',Arial,sans-serif;margin:0}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.wrap{max-width:1180px;margin:0 auto;padding:22px 16px 56px}
+
+/* header + tabs */
+.top h1{font-size:clamp(28px,4.2vw,40px);font-weight:600;letter-spacing:-.005em;line-height:1.1}
+.lede{margin:6px 0 0;color:var(--ink2);max-width:62ch}
+.tabs{display:flex;gap:4px;margin:20px 0 18px;border-bottom:1px solid var(--rule)}
+.tab{background:none;border:0;border-bottom:3px solid transparent;margin-bottom:-1px;padding:8px 14px 7px;cursor:pointer;color:var(--ink2);font-family:'Barlow Semi Condensed',Arial,sans-serif;font-weight:600;font-size:19px}
+.tab[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent)}
+.tab:hover{color:var(--ink)}
+
+/* layout */
+.grid{display:grid;gap:20px;grid-template-columns:minmax(0,1fr)}
+@media (min-width:1000px){
+  .grid{grid-template-columns:minmax(360px,5fr) minmax(0,7fr);align-items:start}
+  .results{position:sticky;top:calc(16px + env(safe-area-inset-top,0px));max-height:calc(100vh - 32px);overflow:auto}
+  .minibar{display:none!important}
+}
+.panel{background:var(--surface);border-top:3px solid var(--ink);padding:18px 18px 22px}
+.panel h2{font-size:24px;font-weight:600}
+.panel h3{font-size:18px;font-weight:600;padding-bottom:5px;margin:22px 0 10px;border-bottom:1px solid var(--rule)}
+.sub{color:var(--ink2);font-size:14px;margin:2px 0 0}
+
+/* controls */
+.field{display:grid;gap:4px;margin-top:14px}
+.field>label,.fieldlabel{font-weight:500;font-size:14px}
+select,input[type=number],textarea{background:var(--bg);border:1px solid var(--rule);border-radius:3px;padding:7px 9px;width:100%}
+select{cursor:pointer}
+.btns{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
+.btn{background:transparent;border:1px solid var(--ink2);border-radius:3px;padding:7px 12px;cursor:pointer;font-weight:500;font-size:14px}
+.btn:hover{background:var(--bg)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.primary:hover{filter:brightness(1.08)}
+.loaded{margin:10px 0 0;padding:6px 10px;background:var(--bg);border-left:3px solid var(--accent);font-size:14px}
+
+/* sensor rows */
+.row{padding:8px 0 4px}
+.row-head{display:grid;grid-template-columns:1fr auto auto;align-items:center;gap:10px}
+.row-head label{font-weight:500}
+.numwrap{display:inline-flex;align-items:center;gap:5px}
+.numwrap input{width:84px;text-align:right;padding:4px 7px;font-variant-numeric:tabular-nums}
+.unit{color:var(--ink2);font-size:13px;width:36px}
+.chip{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--ink2);width:74px}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--c,var(--ink2));display:inline-block;flex:none}
+.z-ok{--c:var(--ok)} .z-watch{--c:var(--watch)} .z-high{--c:var(--high)} .z-crit{--c:var(--crit)}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:26px;background:transparent;margin:4px 0 0;cursor:pointer}
+input[type=range]::-webkit-slider-runnable-track{height:10px;background:var(--zones);border:1px solid var(--rule);border-radius:2px}
+input[type=range]::-moz-range-track{height:8px;background:var(--zones);border:1px solid var(--rule);border-radius:2px}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:10px;height:24px;margin-top:-8px;background:var(--ink);border:2px solid var(--surface);border-radius:2px;box-shadow:0 0 0 1px var(--ink)}
+input[type=range]::-moz-range-thumb{width:8px;height:22px;background:var(--ink);border:2px solid var(--surface);border-radius:2px;box-shadow:0 0 0 1px var(--ink)}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:12px;font-size:13px;color:var(--ink2)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.swatch{width:16px;height:8px;border:1px solid var(--rule);border-radius:1px}
+.note{font-size:13px;color:var(--ink2);margin:10px 0 0}
+
+/* mini bar (small screens) */
+.minibar{position:sticky;bottom:0;margin:14px -18px -22px;padding:10px 18px calc(10px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--surface);display:flex;align-items:center;gap:10px;font-weight:500}
+.minibar a{margin-left:auto;color:inherit;text-decoration:underline}
+.minibar .dot{background:var(--bc)}
+
+/* bands */
+.b-low{--bc:var(--ok)} .b-elevated{--bc:var(--watch)} .b-high{--bc:var(--high)} .b-critical{--bc:var(--crit)}
+
+/* verdict */
+.verdict{border-left:8px solid var(--bc);padding:2px 0 2px 16px;margin-top:14px}
+.verdict h2{font-size:clamp(32px,5vw,46px);font-weight:700;line-height:1.02;color:var(--bc)}
+.verdict p{margin:6px 0 0;font-size:16px;max-width:60ch}
+
+.scale{margin-top:26px}
+.scale-label{font-size:14px;color:var(--ink2)}
+.scale-wrap{position:relative;padding-top:40px}
+.scale-track{display:flex;height:18px;border:1px solid var(--rule);border-radius:2px;overflow:hidden}
+.scale-track i{flex:1;display:block}
+.scale-track i:nth-child(1){background:var(--z-ok)}
+.scale-track i:nth-child(2){background:var(--z-watch)}
+.scale-track i:nth-child(3){background:var(--z-high)}
+.scale-track i:nth-child(4){background:var(--z-crit)}
+.marker{position:absolute;top:0;bottom:-6px;width:0;transition:left .35s ease}
+.marker::after{content:"";position:absolute;left:-2px;top:36px;bottom:0;width:4px;background:var(--ink);box-shadow:0 0 0 1px var(--surface)}
+.marker b{position:absolute;top:0;left:0;transform:translateX(-50%);font-family:'Barlow Semi Condensed',Arial,sans-serif;font-size:30px;line-height:1;font-weight:700;color:var(--ink);white-space:nowrap}
+.marker.left b{transform:translateX(-4px)}
+.marker.right b{transform:translateX(calc(-100% + 4px))}
+.ticks{display:flex;justify-content:space-between;font-size:12px;color:var(--ink2);margin-top:4px;font-variant-numeric:tabular-nums}
+.ticks span{flex:1;text-align:left}
+.ticks span:last-child{flex:0;text-align:right}
+
+.facts{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:22px 0 0}
+.facts div{border-top:1px solid var(--rule);padding-top:8px}
+.facts dt{font-size:13px;color:var(--ink2)}
+.facts dd{margin:0}
+.facts dd b{display:block;font-family:'Barlow Semi Condensed',Arial,sans-serif;font-size:26px;font-weight:600;line-height:1.15}
+.facts dd span{font-size:13px;color:var(--ink2)}
+
+/* trend */
+.trend svg{display:block;width:100%;height:auto;border:1px solid var(--rule);border-radius:2px}
+.zb-ok{fill:var(--z-ok)} .zb-watch{fill:var(--z-watch)} .zb-high{fill:var(--z-high)} .zb-crit{fill:var(--z-crit)}
+.trend polyline{fill:none;stroke:var(--ink);stroke-width:2.5;stroke-linejoin:round;stroke-linecap:round}
+.trend circle{fill:var(--ink)}
+.trend-cap{display:flex;justify-content:space-between;font-size:12px;color:var(--ink2);margin-top:4px}
+
+/* causes */
+.causes{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+.cause{display:grid;grid-template-columns:minmax(0,1fr) 120px;gap:4px 14px;align-items:center}
+.cause .bar{height:10px;background:var(--z-ok);border-radius:2px;overflow:hidden}
+.cause .bar i{display:block;height:100%;background:var(--accent);transition:width .3s ease}
+.cause small{grid-column:1/-1;color:var(--ink2);font-size:13px;margin-top:-2px}
+.cause .bar{grid-column:2;grid-row:1}
+
+/* actions */
+.plan{margin:0 0 6px;padding:8px 12px;background:var(--bg);border-left:3px solid var(--bc)}
+.actions{list-style:none;margin:10px 0 0;padding:0}
+.actions li{display:grid;grid-template-columns:34px minmax(0,1fr);gap:0 8px;padding:12px 0;border-top:1px solid var(--rule)}
+.actions li:first-child{border-top:0}
+.actions .n{font-family:'Barlow Semi Condensed',Arial,sans-serif;font-size:28px;font-weight:700;line-height:1;color:var(--accent)}
+.actions .t{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px}
+.actions .t b{font-size:16px;font-weight:600}
+.tag{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:500;color:var(--c,var(--ink2))}
+.actions .read{font-size:13px;color:var(--ink2);margin:1px 0 0}
+.actions p{margin:5px 0 0;max-width:68ch}
+.actions .after{font-size:13px;color:var(--ink2);margin-top:6px}
+.empty{padding:10px 0;color:var(--ink2)}
+
+/* fleet */
+.tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:14px 0 4px}
+.tile{border-left:5px solid var(--bc);background:var(--bg);padding:8px 12px}
+.tile b{display:block;font-family:'Barlow Semi Condensed',Arial,sans-serif;font-size:34px;line-height:1;font-weight:700}
+.tile span{font-size:13px;color:var(--ink2)}
+@media (max-width:560px){.tiles{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.tablewrap{overflow-x:auto;margin-top:12px}
+table{border-collapse:collapse;width:100%;min-width:720px}
+th{font-weight:500;font-size:13px;color:var(--ink2);text-align:left;padding:6px 10px;border-bottom:2px solid var(--ink)}
+td{padding:9px 10px;border-bottom:1px solid var(--rule);vertical-align:middle}
+td small{display:block;color:var(--ink2);font-size:12px}
+.mini{display:flex;align-items:center;gap:8px;min-width:130px}
+.mini .bar{flex:1;height:8px;background:var(--z-ok);border-radius:2px;overflow:hidden}
+.mini .bar i{display:block;height:100%;background:var(--bc)}
+.mini span{width:38px;text-align:right;font-variant-numeric:tabular-nums;font-weight:500}
+.csvbox{margin-top:8px}
+textarea{min-height:120px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12.5px;line-height:1.4;resize:vertical;white-space:pre}
+.err{color:var(--crit);font-weight:500;margin:8px 0 0}
+input[type=file]{font-size:14px;max-width:100%}
+
+/* about */
+details{margin-top:24px;background:var(--surface);border-top:3px solid var(--ink);padding:14px 18px}
+summary{cursor:pointer;font-family:'Barlow Semi Condensed',Arial,sans-serif;font-size:20px;font-weight:600}
+details p,details li{max-width:78ch}
+pre.payload{background:var(--bg);border:1px solid var(--rule);padding:10px;overflow:auto;font-size:12.5px;line-height:1.4;margin:8px 0 0}
+
+[hidden]{display:none!important}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1>Predictive maintenance for IoT devices</h1>
+    <p class="lede">Enter sensor readings to estimate the chance of failure, see the likely cause, and get a prioritized maintenance plan.</p>
+    <div class="tabs" role="tablist" aria-label="Views">
+      <button class="tab" role="tab" id="tab-analyzer" aria-selected="true" aria-controls="view-analyzer">Device analyzer</button>
+      <button class="tab" role="tab" id="tab-fleet" aria-selected="false" aria-controls="view-fleet">Fleet overview</button>
+    </div>
+  </header>
+
+  <!-- ============ DEVICE ANALYZER ============ -->
+  <section id="view-analyzer" role="tabpanel" aria-labelledby="tab-analyzer">
+    <div class="grid">
+      <div class="panel inputs">
+        <h2>Sensor readings</h2>
+        <p class="sub">Move a slider or type a value. Colored zones on each slider show where a reading turns risky.</p>
+
+        <div class="field">
+          <label for="devtype">Device type</label>
+          <select id="devtype"></select>
+        </div>
+        <div id="loaded" class="loaded" hidden></div>
+
+        <div class="field">
+          <span class="fieldlabel">Load an example</span>
+          <div class="btns" id="scenarios">
+            <button class="btn" data-scn="healthy">Healthy</button>
+            <button class="btn" data-scn="degrading">Wearing out</button>
+            <button class="btn" data-scn="critical">Failing</button>
+            <button class="btn primary" id="demo">Run degradation demo</button>
+          </div>
+        </div>
+
+        <div id="rows"></div>
+
+        <div class="legend" aria-hidden="true">
+          <span><i class="swatch" style="background:var(--z-ok)"></i>Normal</span>
+          <span><i class="swatch" style="background:var(--z-watch)"></i>Watch</span>
+          <span><i class="swatch" style="background:var(--z-high)"></i>Warning</span>
+          <span><i class="swatch" style="background:var(--z-crit)"></i>Critical</span>
+        </div>
+        <p class="note" id="hiddennote" hidden>Some sensors are hidden because this device type does not have them.</p>
+
+        <div class="minibar b-low" id="minibar" aria-hidden="true"></div>
+      </div>
+
+      <div class="panel results b-low" id="results" aria-live="polite"></div>
+    </div>
+
+    <!-- ============ TRAINED ML MODEL TEST ============ -->
+    <div class="panel" style="margin-top:20px">
+      <h2>Trained ML model test</h2>
+      <p class="sub">This section sends the five input features used by the trained AI4I Random Forest model to your Flask API. It is separate from the dashboard's illustrative sensor-risk score because the two sets of sensor fields do not match.</p>
+      <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin-top:12px">
+        <div class="field"><label for="ml-air">Air temperature (K)</label><input id="ml-air" type="number" step="0.1" value="300.0"></div>
+        <div class="field"><label for="ml-process">Process temperature (K)</label><input id="ml-process" type="number" step="0.1" value="310.0"></div>
+        <div class="field"><label for="ml-speed">Rotational speed (rpm)</label><input id="ml-speed" type="number" step="1" value="1500"></div>
+        <div class="field"><label for="ml-torque">Torque (Nm)</label><input id="ml-torque" type="number" step="0.1" value="40.0"></div>
+        <div class="field"><label for="ml-wear">Tool wear (min)</label><input id="ml-wear" type="number" step="1" value="100"></div>
+      </div>
+      <div class="btns">
+        <button class="btn primary" id="ml-predict">Predict with trained ML model</button>
+      </div>
+      <p id="ml-status" class="loaded" role="status" aria-live="polite">Ready. Make sure the Flask server is running at 127.0.0.1:5000.</p>
+      <div id="ml-result" aria-live="polite"></div>
+    </div>
+  </section>
+
+  <!-- ============ FLEET ============ -->
+  <section id="view-fleet" role="tabpanel" aria-labelledby="tab-fleet" hidden>
+    <div class="panel">
+      <h2>Fleet overview</h2>
+      <p class="sub" id="fleetsrc">Sample fleet of 12 devices, ranked by failure risk. Open any device to see its full analysis.</p>
+      <div class="tiles" id="tiles"></div>
+      <div class="tablewrap"><table id="fleettable"></table></div>
+
+      <h3>Analyze your own data</h3>
+      <p class="sub">Paste CSV or choose a file. Leave a cell empty to use a healthy default. Device types: motor, sensor, meter, gateway.</p>
+      <div class="csvbox">
+        <textarea id="csv" spellcheck="false" aria-label="CSV data" placeholder="device_id,device_type,temperature,vibration,humidity,voltage_dev,current_pct,battery,rssi,packet_loss,hours_since_service,errors_24h"></textarea>
+        <div class="btns">
+          <button class="btn primary" id="csvrun">Analyze CSV</button>
+          <button class="btn" id="csvsample">Load sample CSV</button>
+          <button class="btn" id="csvreset">Back to sample fleet</button>
+          <input type="file" id="csvfile" accept=".csv,text/csv,text/plain" aria-label="Choose a CSV file">
+        </div>
+        <p class="err" id="csverr" hidden></p>
+      </div>
+    </div>
+  </section>
+
+  <details>
+    <summary>How the prediction works</summary>
+    <p>This front end scores each reading against normal and critical limits (for example, vibration bands follow ISO 10816-style severity zones). Each reading becomes a stress value from 0 (normal) to 1 (critical). A logistic model combines the weighted stresses, the single worst reading, and a few interactions such as heat plus vibration to give the probability of failure in the next 14 days.</p>
+    <p>The weights and limits are engineering defaults for demonstration. They are not trained on your fleet. To use a trained model (Random Forest, XGBoost, LSTM and so on), replace the <code>predict()</code> function in the page source with a call to your own API that receives the payload below and returns the same fields: probability, failure causes and ordered actions.</p>
+    <p class="sub">Current model input:</p>
+    <pre class="payload" id="payload"></pre>
+  </details>
+</div>
+
+<script>
+// ==MODEL-START==
+const DEVICE_TYPES = {
+  motor:  {label:'Industrial motor or pump', features:['temperature','vibration','humidity','voltage','current','rssi','loss','hours','errors']},
+  sensor: {label:'Battery-powered sensor node', features:['temperature','humidity','battery','rssi','loss','hours','errors']},
+  meter:  {label:'Smart energy meter', features:['temperature','humidity','voltage','current','rssi','loss','hours','errors']},
+  gateway:{label:'IoT gateway or router', features:['temperature','humidity','voltage','rssi','loss','hours','errors']}
+};
+
+// dir: 'high' = higher is worse, 'low' = lower is worse, 'abs' = distance from zero is worse
+// normal = edge of the normal range, crit = value at which the reading counts as critical
+const FEATURES = [
+  {key:'temperature',label:'Temperature',unit:'°C',min:0,max:130,step:1,dir:'high',normal:60,crit:95,group:'Thermal and mechanical',w:1.6,
+   title:'Bring the temperature down',
+   warnText:'Check ventilation, clean heat sinks and filters, and confirm the ambient temperature around the enclosure.',
+   critText:'Reduce the load or shut the device down to prevent thermal damage. Inspect the cooling fan, thermal contact and enclosure airflow before restarting.'},
+  {key:'vibration',label:'Vibration',unit:'mm/s',min:0,max:12,step:0.1,dir:'high',normal:2.8,crit:7.1,group:'Thermal and mechanical',w:2.2,
+   title:'Fix the vibration source',
+   warnText:'Inspect mounting bolts, shaft alignment and balance. Lubricate bearings according to the schedule.',
+   critText:'Stop the equipment and inspect or replace the bearings. Sustained high vibration usually comes before seizure or a broken shaft.'},
+  {key:'humidity',label:'Humidity',unit:'%',min:0,max:100,step:1,dir:'high',normal:60,crit:90,group:'Thermal and mechanical',w:0.9,
+   title:'Protect the device from moisture',
+   warnText:'Check enclosure seals and gaskets. Add desiccant or a breather vent.',
+   critText:'Open the enclosure, dry it out and inspect the circuit board for corrosion. Replace the seals before redeploying.'},
+  {key:'voltage',label:'Voltage deviation from nominal',unit:'%',min:-25,max:25,step:0.5,dir:'abs',normal:5,crit:15,group:'Electrical',w:1.2,
+   title:'Stabilize the power supply',
+   warnText:'Log the supply voltage over 24 hours. Check connectors, cabling and the power adapter under load.',
+   critText:'Repair or replace the power supply and add a regulator or surge protection. Unstable voltage damages flash memory and radios.'},
+  {key:'current',label:'Current draw (% of rated)',unit:'%',min:0,max:160,step:1,dir:'high',normal:85,crit:120,group:'Electrical',w:1.5,
+   title:'Check the electrical load',
+   warnText:'Compare with the rated current. Look for a rise in mechanical load or a partial short.',
+   critText:'Reduce the load and inspect windings and circuits for shorts. Add overcurrent protection if it is missing.'},
+  {key:'battery',label:'Battery level',unit:'%',min:0,max:100,step:1,dir:'low',normal:40,crit:10,group:'Electrical',w:1.4,
+   title:'Replace or recharge the battery',
+   warnText:'Schedule a battery replacement for the next visit. A longer reporting interval will stretch the remaining life.',
+   critText:'Replace the battery now. The device will drop off the network shortly.'},
+  {key:'rssi',label:'Signal strength (RSSI)',unit:'dBm',min:-110,max:-30,step:1,dir:'low',normal:-75,crit:-100,group:'Network and software',w:0.8,
+   title:'Improve the signal',
+   warnText:'Check antenna orientation and distance to the gateway. Look for new obstructions or interference.',
+   critText:'Relocate the device or add a gateway or repeater. A weak link causes retries that drain power and hide other faults.'},
+  {key:'loss',label:'Packet loss',unit:'%',min:0,max:40,step:0.5,dir:'high',normal:2,crit:15,group:'Network and software',w:0.9,
+   title:'Reduce packet loss',
+   warnText:'Check channel congestion and gateway load, then review the retry settings.',
+   critText:'Trace the network path: swap the antenna or cable, change channel and confirm the gateway is healthy.'},
+  {key:'errors',label:'Error count (last 24 h)',unit:'',min:0,max:100,step:1,dir:'high',normal:5,crit:40,group:'Network and software',w:1.6,
+   title:'Investigate the error logs',
+   warnText:'Review the logs for repeating error codes and update the firmware.',
+   critText:'Collect logs, update or roll back the firmware and run a power-cycle test. Persistent errors point to failing hardware.'},
+  {key:'hours',label:'Hours since last service',unit:'h',min:0,max:12000,step:100,dir:'high',normal:2500,crit:8000,group:'Service history',w:1.3,
+   title:'Service the device',
+   warnText:'Book preventive service. The service interval is nearly used up.',
+   critText:'Maintenance is overdue. Replace wear parts, update the firmware and recalibrate.'}
+];
+
+const MODES = [
+  {id:'bearing', label:'Bearing or mechanical wear',      w:[['vibration',.45],['temperature',.15],['hours',.2],['current',.2]]},
+  {id:'thermal', label:'Overheating',                     w:[['temperature',.6],['current',.25],['hours',.15]]},
+  {id:'power',   label:'Power supply or electrical fault',w:[['voltage',.5],['current',.3],['temperature',.1],['errors',.1]]},
+  {id:'battery', label:'Battery depletion',               w:[['battery',1]]},
+  {id:'network', label:'Connectivity degradation',        w:[['rssi',.4],['loss',.4],['errors',.2]]},
+  {id:'moisture',label:'Moisture or corrosion damage',    w:[['humidity',.6],['voltage',.2],['errors',.1],['temperature',.1]]},
+  {id:'firmware',label:'Firmware or software fault',      w:[['errors',.6],['hours',.2],['loss',.2]]}
+];
+
+const INTERACTIONS = [['temperature','vibration',1.5],['temperature','current',1.0],['humidity','voltage',0.8]];
+
+const SCEN = {
+  healthy:  {temperature:45,vibration:1.6,humidity:45,voltage:1,   current:65, battery:85,rssi:-62,loss:0.8,hours:900, errors:2},
+  degrading:{temperature:78,vibration:4.8,humidity:68,voltage:-7,  current:105,battery:32,rssi:-84,loss:6,  hours:5200,errors:18},
+  critical: {temperature:97,vibration:7.9,humidity:88,voltage:-16, current:128,battery:9, rssi:-98,loss:17, hours:8800,errors:46}
+};
+
+const HORIZON_DAYS = 14;
+const BANDS = [
+  {key:'low',      label:'Low risk',      max:.25},
+  {key:'elevated', label:'Elevated risk', max:.50},
+  {key:'high',     label:'High risk',     max:.75},
+  {key:'critical', label:'Critical risk', max:1.01}
+];
+const VERDICT = {
+  low:      {h:'Device looks healthy',    d:'All key readings are within normal limits. Keep the regular monitoring schedule.'},
+  elevated: {h:'Early signs of wear',     d:'Some readings are drifting out of range.'},
+  high:     {h:'Failure likely soon',     d:'Several readings are in the warning zone.'},
+  critical: {h:'Failure imminent',        d:'Multiple readings are at critical levels.'}
+};
+
+function stress(f, x){
+  let s;
+  if (f.dir === 'high') s = (x - f.normal) / (f.crit - f.normal);
+  else if (f.dir === 'low') s = (f.normal - x) / (f.normal - f.crit);
+  else s = (Math.abs(x) - f.normal) / (f.crit - f.normal);
+  return Math.max(0, Math.min(1.5, s));
+}
+function zoneClass(s){ return s <= 0 ? 'ok' : s < .5 ? 'watch' : s < 1 ? 'high' : 'crit'; }
+const ZONE_LABEL = {ok:'Normal', watch:'Watch', high:'Warning', crit:'Critical'};
+function clampP(p){ return Math.min(0.995, Math.max(0.005, p)); }
+
+function probability(s){
+  let sum = 0, max = 0;
+  FEATURES.forEach(f => { sum += f.w * s[f.key]; max = Math.max(max, s[f.key]); });
+  let z = -3.5 + 0.4 * sum + 3.0 * max;
+  INTERACTIONS.forEach(([a,b,w]) => { z += w * s[a] * s[b]; });
+  return clampP(1 / (1 + Math.exp(-z)));
+}
+function bandOf(p){ return BANDS.find(b => p < b.max); }
+function medianDaysToFailure(p){ return HORIZON_DAYS * Math.LN2 / (-Math.log(1 - p)); }
+
+// Replace this function with a call to your own trained model if you self-host the page.
+function predict(values, type){
+  const feats = DEVICE_TYPES[type].features;
+  const s = {};
+  FEATURES.forEach(f => { s[f.key] = feats.includes(f.key) ? stress(f, Number(values[f.key])) : 0; });
+  const p = probability(s);
+  const band = bandOf(p);
+  const days = medianDaysToFailure(p);
+
+  const modes = MODES
+    .filter(m => feats.includes(m.w[0][0]))
+    .map(m => {
+      const app = m.w.filter(([k]) => feats.includes(k));
+      const tot = app.reduce((a,[,w]) => a + w, 0);
+      const score = app.reduce((a,[k,w]) => a + w * s[k], 0) / tot;
+      return {id:m.id, label:m.label, score};
+    })
+    .filter(m => m.score >= 0.2)
+    .sort((a,b) => b.score - a.score)
+    .slice(0,3);
+
+  const drivers = FEATURES
+    .filter(f => s[f.key] >= 0.1)
+    .sort((a,b) => b.w * s[b.key] - a.w * s[a.key])
+    .slice(0,5);
+  const cur = {...s};
+  const actions = drivers.map(f => {
+    cur[f.key] = 0;
+    return {f, s:s[f.key], pAfter:probability(cur)};
+  });
+  return {p, band, days, s, modes, actions};
+}
+// ==MODEL-END==
+
+/* ---------------- UI ---------------- */
+const $ = sel => document.querySelector(sel);
+const esc = t => String(t).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const pct = p => Math.min(99, Math.max(1, Math.round(p * 100))) + '%';
+const state = {type:'motor', values:{...SCEN.healthy}, label:null};
+let demoTimer = null, history = [];
+const DEMO_STEPS = 28;
+
+function fmtVal(f, v){
+  const n = f.step < 1 ? Number(v).toFixed(1) : Math.round(v).toLocaleString('en-US');
+  if (!f.unit) return n;
+  return (f.unit === '%' || f.unit === '°C') ? n + f.unit : n + ' ' + f.unit;
+}
+
+function zoneGradient(f){
+  const N = 80, segs = [];
+  let last = null, start = 0;
+  for (let i = 0; i < N; i++){
+    const x = f.min + (f.max - f.min) * (i + .5) / N;
+    const c = zoneClass(stress(f, x));
+    if (c !== last){ if (last) segs.push([last, start, i]); last = c; start = i; }
+  }
+  segs.push([last, start, N]);
+  return 'linear-gradient(to right,' + segs.map(([c,a,b]) => `var(--z-${c}) ${(a/N*100).toFixed(2)}% ${(b/N*100).toFixed(2)}%`).join(',') + ')';
+}
+
+function buildRows(){
+  const groups = [...new Set(FEATURES.map(f => f.group))];
+  $('#rows').innerHTML = groups.map(g => `
+    <div class="group" data-group="${esc(g)}"><h3>${esc(g)}</h3>
+    ${FEATURES.filter(f => f.group === g).map(f => `
+      <div class="row" data-key="${f.key}">
+        <div class="row-head">
+          <label for="n-${f.key}">${esc(f.label)}</label>
+          <span class="chip" id="chip-${f.key}"></span>
+          <span class="numwrap"><input type="number" id="n-${f.key}" min="${f.min}" max="${f.max}" step="${f.step}"><span class="unit">${esc(f.unit)}</span></span>
+        </div>
+        <input type="range" id="r-${f.key}" min="${f.min}" max="${f.max}" step="${f.step}" aria-label="${esc(f.label)}" style="--zones:${zoneGradient(f)}">
+      </div>`).join('')}
+    </div>`).join('');
+  $('#devtype').innerHTML = Object.entries(DEVICE_TYPES).map(([k,t]) => `<option value="${k}">${esc(t.label)}</option>`).join('');
+}
+
+function applyType(){
+  const feats = DEVICE_TYPES[state.type].features;
+  let hiddenAny = false;
+  FEATURES.forEach(f => {
+    const on = feats.includes(f.key);
+    document.querySelector(`.row[data-key="${f.key}"]`).hidden = !on;
+    if (!on) hiddenAny = true;
+  });
+  document.querySelectorAll('.group').forEach(g => { g.hidden = ![...g.querySelectorAll('.row')].some(r => !r.hidden); });
+  $('#hiddennote').hidden = !hiddenAny;
+  $('#devtype').value = state.type;
+}
+
+function syncControls(){
+  FEATURES.forEach(f => {
+    const v = state.values[f.key];
+    $('#r-' + f.key).value = v;
+    $('#n-' + f.key).value = v;
+  });
+  const l = $('#loaded');
+  l.hidden = !state.label;
+  if (state.label) l.textContent = 'Showing ' + state.label + '. Edit any reading to explore what-if changes.';
+}
+
+function stopDemo(){
+  if (demoTimer){ clearInterval(demoTimer); demoTimer = null; }
+  $('#demo').textContent = 'Run degradation demo';
+}
+function onManualChange(){ stopDemo(); history = []; }
+
+function startDemo(){
+  stopDemo();
+  history = [];
+  state.label = null;
+  let step = 0;
+  $('#demo').textContent = 'Stop demo';
+  demoTimer = setInterval(() => {
+    const t = Math.pow(step / DEMO_STEPS, 1.35);
+    FEATURES.forEach(f => {
+      const a = SCEN.healthy[f.key], b = SCEN.critical[f.key];
+      let v = a + (b - a) * t;
+      v = f.step >= 1 ? Math.round(v / f.step) * f.step : Math.round(v * 10) / 10;
+      state.values[f.key] = v;
+    });
+    syncControls();
+    history.push(predict(state.values, state.type).p);
+    render();
+    step++;
+    if (step > DEMO_STEPS) stopDemo();
+  }, 450);
+}
+
+/* ---- rendering ---- */
+function scaleHTML(p){
+  const cls = p < .1 ? 'left' : p > .9 ? 'right' : '';
+  return `
+  <div class="scale">
+    <div class="scale-label">Probability of failure in the next ${HORIZON_DAYS} days</div>
+    <div class="scale-wrap" role="img" aria-label="Failure probability ${pct(p)}">
+      <div class="scale-track"><i></i><i></i><i></i><i></i></div>
+      <div class="marker ${cls}" style="left:${(p*100).toFixed(1)}%"><b>${pct(p)}</b></div>
+    </div>
+    <div class="ticks" aria-hidden="true"><span>0%</span><span>25%</span><span>50%</span><span>75%</span><span>100%</span></div>
+  </div>`;
+}
+
+function ttfText(d){
+  if (d >= 180) return {main:'180+ days', sub:'No failure expected in the near term'};
+  if (d < 1) return {main:'Under 24 hours', sub:'Act immediately'};
+  const r = Math.round(d), lo = Math.max(1, Math.round(d * .65)), hi = Math.max(lo + 1, Math.round(d * 1.4));
+  return {main:`About ${r} ${r === 1 ? 'day' : 'days'}`, sub:`Likely range: ${lo} to ${hi} days`};
+}
+function windowText(band, d){
+  const w = Math.max(1, Math.round(d * .5));
+  if (band.key === 'critical') return {main:'Now', sub:'Take the device out of service or reduce its load'};
+  if (band.key === 'high') return {main:`Within ${w} ${w === 1 ? 'day' : 'days'}`, sub:'Order spare parts and book a technician'};
+  if (band.key === 'elevated') return {main:`Within ${w} ${w === 1 ? 'day' : 'days'}`, sub:'Inspect at the next site visit'};
+  return {main:'Routine schedule', sub:'No extra visit needed'};
+}
+function planText(band, d){
+  const w = Math.max(1, Math.round(d * .5));
+  if (band.key === 'critical') return 'Act now. Reduce load or take the device out of service, then work through the steps below. Route traffic to a backup if this device is in a critical path.';
+  if (band.key === 'high') return `Book maintenance within ${w} ${w === 1 ? 'day' : 'days'} and order likely spare parts now. Increase reading frequency to every 15 minutes.`;
+  if (band.key === 'elevated') return `Plan an inspection within ${w} days. Increase reading frequency to hourly and watch the readings below.`;
+  return 'No action needed. Keep monitoring at the normal interval.';
+}
+
+function trendHTML(){
+  if (history.length < 2) return '';
+  const W = 320, H = 72;
+  const pts = history.map((p,i) => `${(i / DEMO_STEPS * W).toFixed(1)},${(H - p * H).toFixed(1)}`);
+  const last = pts[pts.length - 1].split(',');
+  const zones = ['ok','watch','high','crit'].map((z,i) => `<rect class="zb-${z}" x="0" y="${H - (i+1) * H/4}" width="${W}" height="${H/4}"/>`).join('');
+  return `
+  <h3>Simulated trend</h3>
+  <div class="trend">
+    <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Failure probability rising over the simulated run" preserveAspectRatio="none">
+      ${zones}<polyline points="${pts.join(' ')}"/><circle cx="${last[0]}" cy="${last[1]}" r="4"/>
+    </svg>
+    <div class="trend-cap"><span>Healthy readings</span><span>Readings drifting toward failure</span></div>
+  </div>`;
+}
+
+function resultsHTML(res){
+  const b = res.band, v = VERDICT[b.key];
+  const top = res.modes[0];
+  const sentence = (b.key !== 'low' && top) ? `${v.d} Most likely cause: ${top.label.toLowerCase()}.` : v.d;
+  const ttf = ttfText(res.days), win = windowText(b, res.days);
+
+  const causes = res.modes.length
+    ? `<ul class="causes">${res.modes.map(m => `
+        <li class="cause"><span>${esc(m.label)}</span>
+          <div class="bar" aria-hidden="true"><i style="width:${Math.min(100, Math.round(m.score * 100))}%"></i></div>
+          <small>${m.score >= .6 ? 'Strong indicator' : m.score >= .35 ? 'Moderate indicator' : 'Weak indicator'}</small></li>`).join('')}</ul>`
+    : `<p class="empty">No failure pattern detected in the current readings.</p>`;
+
+  const actions = res.actions.length
+    ? `<p class="plan"><strong>Plan:</strong> ${esc(planText(b, res.days))}</p>
+       <ol class="actions">${res.actions.map((a,i) => {
+          const z = zoneClass(a.s);
+          const urgency = a.s >= .75 ? 'Do now' : a.s >= .4 ? 'This week' : 'Next service visit';
+          const text = a.s >= .75 ? a.f.critText : a.f.warnText;
+          return `<li><span class="n">${i+1}</span><div>
+            <div class="t"><b>${esc(a.f.title)}</b><span class="tag z-${z}"><i class="dot"></i>${urgency}</span></div>
+            <div class="read">${esc(a.f.label)}: ${fmtVal(a.f, state.values[a.f.key])} (${ZONE_LABEL[z].toLowerCase()})</div>
+            <p>${esc(text)}</p>
+            <div class="after">Failure risk after steps 1${i ? ' to ' + (i+1) : ''}: <strong>${pct(a.pAfter)}</strong></div>
+          </div></li>`; }).join('')}</ol>`
+    : `<p class="plan"><strong>Plan:</strong> ${esc(planText(b, res.days))}</p><p class="empty">All readings are inside normal limits. There is nothing to fix.</p>`;
+
+  return `
+    <h2>Prediction</h2>
+    <div class="verdict"><h2>${esc(v.h)}</h2><p>${esc(sentence)}</p></div>
+    ${scaleHTML(res.p)}
+    <dl class="facts">
+      <div><dt>Estimated time to failure</dt><dd><b>${esc(ttf.main)}</b><span>${esc(ttf.sub)}</span></dd></div>
+      <div><dt>Service window</dt><dd><b>${esc(win.main)}</b><span>${esc(win.sub)}</span></dd></div>
+    </dl>
+    ${trendHTML()}
+    <h3>Likely causes</h3>${causes}
+    <h3>Recommended actions</h3>${actions}`;
+}
+
+function render(){
+  const res = predict(state.values, state.type);
+  const feats = DEVICE_TYPES[state.type].features;
+  FEATURES.forEach(f => {
+    if (!feats.includes(f.key)) return;
+    const z = zoneClass(res.s[f.key]);
+    const chip = $('#chip-' + f.key);
+    chip.className = 'chip z-' + z;
+    chip.innerHTML = `<i class="dot"></i>${ZONE_LABEL[z]}`;
+  });
+  const box = $('#results');
+  box.className = 'panel results b-' + res.band.key;
+  box.innerHTML = resultsHTML(res);
+  const mb = $('#minibar');
+  mb.className = 'minibar b-' + res.band.key;
+  mb.innerHTML = `<i class="dot"></i><span>${res.band.label} · ${pct(res.p)}</span><a href="#results">See actions</a>`;
+  const payload = {device_type:state.type};
+  feats.forEach(k => { payload[k] = Number(state.values[k]); });
+  $('#payload').textContent = JSON.stringify(payload, null, 2);
+}
+
+/* ---- events ---- */
+function onReading(e){
+  const id = e.target.id;
+  if (!id || !/^[rn]-/.test(id)) return;
+  const f = FEATURES.find(x => x.key === id.slice(2));
+  if (!f) return;
+  let v = parseFloat(e.target.value);
+  if (Number.isNaN(v)) return;
+  v = Math.min(f.max, Math.max(f.min, v));
+  onManualChange();
+  state.label = null; $('#loaded').hidden = true;
+  state.values[f.key] = v;
+  if (id[0] === 'r') $('#n-' + f.key).value = v; else $('#r-' + f.key).value = v;
+  render();
+}
+$('#rows').addEventListener('input', onReading);
+
+$('#devtype').addEventListener('change', e => {
+  onManualChange();
+  state.type = e.target.value; state.label = null;
+  applyType(); syncControls(); render();
+});
+$('#scenarios').addEventListener('click', e => {
+  const b = e.target.closest('button[data-scn]');
+  if (!b) return;
+  onManualChange();
+  state.values = {...SCEN[b.dataset.scn]}; state.label = null;
+  syncControls(); render();
+});
+$('#demo').addEventListener('click', () => { if (demoTimer){ stopDemo(); } else { startDemo(); } });
+
+/* ---- tabs ---- */
+function switchTab(name){
+  ['analyzer','fleet'].forEach(n => {
+    $('#view-' + n).hidden = n !== name;
+    $('#tab-' + n).setAttribute('aria-selected', String(n === name));
+  });
+}
+$('#tab-analyzer').addEventListener('click', () => switchTab('analyzer'));
+$('#tab-fleet').addEventListener('click', () => switchTab('fleet'));
+
+/* ---- fleet ---- */
+const SAMPLE_FLEET = [
+  {id:'PMP-014',name:'Boiler feed pump',   type:'motor',  v:{temperature:82,vibration:5.6,current:108,hours:6100,errors:14}},
+  {id:'PMP-022',name:'Cooling water pump', type:'motor',  v:{temperature:52,vibration:2.1,hours:1800}},
+  {id:'MTR-007',name:'Conveyor drive',     type:'motor',  v:{temperature:96,vibration:7.6,current:126,hours:9100,errors:38,humidity:70}},
+  {id:'SNS-031',name:'Cold room sensor',   type:'sensor', v:{battery:14,rssi:-92,loss:9,errors:12}},
+  {id:'SNS-032',name:'Warehouse humidity node',type:'sensor',v:{humidity:82,battery:55,rssi:-80,loss:4}},
+  {id:'SNS-040',name:'Greenhouse node',    type:'sensor', v:{battery:78,rssi:-70,humidity:58}},
+  {id:'EM-102', name:'Main incomer meter', type:'meter',  v:{voltage:-13,current:114,temperature:70,errors:22,humidity:62}},
+  {id:'EM-118', name:'Floor 2 meter',      type:'meter',  v:{temperature:38,current:52}},
+  {id:'EM-121', name:'Chiller meter',      type:'meter',  v:{voltage:8,hours:4300,errors:9}},
+  {id:'GW-003', name:'Plant gateway',      type:'gateway',v:{temperature:71,rssi:-82,loss:11,errors:31,hours:6900}},
+  {id:'GW-005', name:'Warehouse gateway',  type:'gateway',v:{hours:1200}},
+  {id:'SNS-055',name:'Loading dock node',  type:'sensor', v:{battery:29,rssi:-86,humidity:76,errors:8}}
+].map(d => ({id:d.id, name:d.name, type:d.type, values:{...SCEN.healthy, ...d.v}}));
+
+let fleet = SAMPLE_FLEET, fleetIsCsv = false;
+
+function renderFleet(){
+  const rows = fleet.map((d,i) => ({d, i, r:predict(d.values, d.type)})).sort((a,b) => b.r.p - a.r.p);
+  const counts = {critical:0, high:0, elevated:0, low:0};
+  rows.forEach(x => counts[x.r.band.key]++);
+  $('#tiles').innerHTML = [['critical','Critical'],['high','High'],['elevated','Elevated'],['low','Low']]
+    .map(([k,l]) => `<div class="tile b-${k}"><b>${counts[k]}</b><span>${l} risk</span></div>`).join('');
+  $('#fleetsrc').textContent = fleetIsCsv
+    ? `Showing ${fleet.length} devices from your CSV, ranked by failure risk. Open any device to see its full analysis.`
+    : 'Sample fleet of 12 devices, ranked by failure risk. Open any device to see its full analysis.';
+  $('#fleettable').innerHTML = `
+    <thead><tr><th>Device</th><th>Type</th><th>Failure risk</th><th>Status</th><th>Time to failure</th><th>Main issue</th><th></th></tr></thead>
+    <tbody>${rows.map(({d,i,r}) => {
+      const t = ttfText(r.days).main.replace('About ','~').replace(' days',' d').replace(' day',' d');
+      const issue = r.band.key === 'low' && !r.modes.length ? 'None' : (r.modes[0] ? r.modes[0].label : 'Minor drift');
+      return `<tr class="b-${r.band.key}">
+        <td><strong>${esc(d.name)}</strong>${d.id !== d.name ? `<small>${esc(d.id)}</small>` : ''}</td>
+        <td>${esc(DEVICE_TYPES[d.type].label)}</td>
+        <td><div class="mini"><div class="bar"><i style="width:${(r.p*100).toFixed(0)}%"></i></div><span>${pct(r.p)}</span></div></td>
+        <td><span class="tag" style="--c:var(--bc)"><i class="dot"></i>${r.band.label.replace(' risk','')}</span></td>
+        <td>${esc(t)}</td>
+        <td>${esc(issue)}</td>
+        <td><button class="btn" data-open="${i}" aria-label="Open ${esc(d.name)} in the analyzer">Open</button></td>
+      </tr>`; }).join('')}</tbody>`;
+}
+$('#fleettable').addEventListener('click', e => {
+  const b = e.target.closest('button[data-open]');
+  if (!b) return;
+  const d = fleet[Number(b.dataset.open)];
+  onManualChange();
+  state.type = d.type; state.values = {...SCEN.healthy, ...d.values}; state.label = `${d.name} (${d.id})`;
+  applyType(); syncControls(); render();
+  switchTab('analyzer');
+  window.scrollTo({top:0});
+});
+
+/* ---- CSV ---- */
+const CSV_COLS = {temperature:'temperature',vibration:'vibration',humidity:'humidity',voltage_dev:'voltage',current_pct:'current',battery:'battery',rssi:'rssi',packet_loss:'loss',hours_since_service:'hours',errors_24h:'errors'};
+const CSV_SAMPLE = `device_id,device_type,temperature,vibration,humidity,voltage_dev,current_pct,battery,rssi,packet_loss,hours_since_service,errors_24h
+PMP-201,motor,84,5.9,55,-6,110,,-70,1.5,6400,16
+SNS-310,sensor,41,,50,,,12,-95,12,2100,9
+EM-408,meter,66,,60,-14,118,,-72,2,4700,25
+GW-011,gateway,58,,45,2,,,-64,0.5,800,1`;
+
+function parseCSV(text){
+  const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  if (lines.length < 2) return {error:'Add a header row and at least one device row.'};
+  const head = lines[0].split(',').map(h => h.trim().toLowerCase());
+  if (!head.some(h => CSV_COLS[h])) return {error:'No sensor columns found. Use headers such as: ' + Object.keys(CSV_COLS).join(', ') + '.'};
+  const out = lines.slice(1).map((line, n) => {
+    const cells = line.split(',').map(c => c.trim());
+    const rec = {};
+    head.forEach((h,i) => { rec[h] = cells[i]; });
+    const type = DEVICE_TYPES[(rec.device_type || '').toLowerCase()] ? rec.device_type.toLowerCase() : 'motor';
+    const values = {...SCEN.healthy};
+    Object.entries(CSV_COLS).forEach(([col,key]) => {
+      const v = parseFloat(rec[col]);
+      if (!Number.isNaN(v)) values[key] = v;
+    });
+    return {id:rec.device_id || 'Row ' + (n + 1), name:rec.device_name || rec.device_id || 'Device ' + (n + 1), type, values};
+  });
+  return {devices:out};
+}
+function runCSV(){
+  const err = $('#csverr');
+  const res = parseCSV($('#csv').value);
+  if (res.error){ err.textContent = res.error; err.hidden = false; return; }
+  err.hidden = true;
+  fleet = res.devices; fleetIsCsv = true;
+  renderFleet();
+}
+$('#csvrun').addEventListener('click', runCSV);
+$('#csvsample').addEventListener('click', () => { $('#csv').value = CSV_SAMPLE; $('#csverr').hidden = true; });
+$('#csvreset').addEventListener('click', () => { fleet = SAMPLE_FLEET; fleetIsCsv = false; $('#csverr').hidden = true; renderFleet(); });
+$('#csvfile').addEventListener('change', e => {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+  const rd = new FileReader();
+  rd.onload = () => { $('#csv').value = String(rd.result); runCSV(); };
+  rd.onerror = () => { $('#csverr').textContent = 'The file could not be read. Try pasting the CSV text instead.'; $('#csverr').hidden = false; };
+  rd.readAsText(file);
+});
+
+/* ---- trained Random Forest API connection ---- */
+$('#ml-predict').addEventListener('click', async () => {
+  const status = $('#ml-status');
+  const result = $('#ml-result');
+  const readNumber = id => Number($(id).value);
+  const payload = {
+    'Air temperature [K]': readNumber('#ml-air'),
+    'Process temperature [K]': readNumber('#ml-process'),
+    'Rotational speed [rpm]': readNumber('#ml-speed'),
+    'Torque [Nm]': readNumber('#ml-torque'),
+    'Tool wear [min]': readNumber('#ml-wear')
+  };
+  if (Object.values(payload).some(v => !Number.isFinite(v))) {
+    status.textContent = 'Please enter a valid number in every field.';
+    return;
+  }
+  status.textContent = 'Sending readings to the trained ML model…';
+  result.innerHTML = '';
+  try {
+    const response = await fetch('http://127.0.0.1:5000/predict', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload)
+    });
+    if (!response.ok) throw new Error('Server returned HTTP ' + response.status);
+    const data = await response.json();
+    const failed = Number(data.prediction) === 1;
+    status.textContent = 'Prediction received from your Flask ML server.';
+    result.innerHTML = `<div class="loaded" style="margin-top:12px;border-left-color:${failed ? 'var(--crit)' : 'var(--ok)'}"><strong>${failed ? 'Machine failure predicted' : 'No machine failure predicted'}</strong><br>Model-estimated failure probability: <strong>${Number(data.failure_probability).toFixed(2)}%</strong></div>`;
+  } catch (error) {
+    status.textContent = 'Could not connect to Flask. Check that “py app.py” is still running at http://127.0.0.1:5000, then try again.';
+    result.innerHTML = `<p class="err">${String(error.message).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]))}</p>`;
+  }
+});
+
+/* ---- init ---- */
+buildRows();
+applyType();
+syncControls();
+render();
+renderFleet();
+</script>
+</body>
+</html>
